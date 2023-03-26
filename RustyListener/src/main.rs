@@ -27,7 +27,7 @@ fn main() {
     println!("Server listening on 127.0.0.1:8080");
 
     let (tx, rx): (std::sync::mpsc::Sender<String>, Receiver<String>) = channel();
-    let mut thread_vec: Vec<std::thread::JoinHandle<()>> = Vec::new();
+    let mut client_vec: Vec<std::thread::JoinHandle<()>> = Vec::new();
     // The move keyword is used to move ownership of the rx variable into the new thread.
     // This is necessary because Rust requires that all variables used in a closure be owned by the closure.
     let receiver_thread = thread::spawn(move || {
@@ -40,7 +40,7 @@ fn main() {
         match stream {
             Ok(stream) => {
                 let tx_clone = tx.clone(); // Clone the channel sender for each new client
-                thread_vec.push(thread::spawn(move || handle_client(stream, tx_clone))); // Spawn a new thread for each new client
+                client_vec.push(thread::spawn(move || handle_client(stream, tx_clone))); // Spawn a new thread for each new client
             },
             Err(e) => {
                 eprintln!("Error accepting connection: {}", e);
@@ -50,7 +50,7 @@ fn main() {
 
     receiver_thread.join().unwrap();
 
-    for thread in thread_vec {
+    for thread in client_vec {
         thread.join().unwrap();
     }
 }
