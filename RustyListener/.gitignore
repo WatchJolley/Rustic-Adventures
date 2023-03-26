@@ -1,0 +1,12 @@
+# Ignore compiled binaries
+/target/
+
+# Ignore project files that may contain secrets or sensitive information
+*.env
+
+# Ignore editor-specific files
+.vscode/
+.idea/
+
+# Ignore build artifacts
+Cargo.lock
