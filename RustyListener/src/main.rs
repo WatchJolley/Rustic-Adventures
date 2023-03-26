@@ -30,11 +30,11 @@ fn main() {
     let mut thread_vec: Vec<std::thread::JoinHandle<()>> = Vec::new();
     // The move keyword is used to move ownership of the rx variable into the new thread.
     // This is necessary because Rust requires that all variables used in a closure be owned by the closure.
-    thread_vec.push(thread::spawn(move || {
+    let receiver_thread = thread::spawn(move || {
         for message in rx {
             println!("Received message: {}", message);
         }
-    }));
+    });
 
     for stream in listener.incoming() {
         match stream {
@@ -47,6 +47,8 @@ fn main() {
             }
         }
     }
+
+    receiver_thread.join().unwrap();
 
     for thread in thread_vec {
         thread.join().unwrap();
