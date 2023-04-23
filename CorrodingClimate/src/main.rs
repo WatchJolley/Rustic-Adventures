@@ -1,28 +1,20 @@
+mod api;
+mod models;
+use crate::api::urls;
+use models::{GeocodingJSON, OpenMetroJSON};
 use reqwest;
-use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
 
-#[derive(Serialize, Deserialize, Debug)]
-struct GeocodingJSON {
-    display_name: String,
-    lat: String,
-    lon: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-
-struct OpenMetroWeatherJSON {
-    temperature: f64,
-    time: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OpenMetroJSON {
-    current_weather: OpenMetroWeatherJSON,
-}
+pub const OPEN_METEO_WEATHER_URL: &str = "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current_weather=true&temperature_unit=celsius";
+pub const GEOCODING_URL: &str = "https://geocode.maps.co/search?q={}";
 
 async fn get_openmetro_weather(lat: &str, long: &str) -> Result<reqwest::Response, reqwest::Error> {
-    let openmetro_url = format!("https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current_weather=true&temperature_unit=celsius", lat, long);
+    let openmetro_url = format!(
+        "{}?latitude={}&longitude={}&current_weather=true&temperature_unit=celsius",
+        urls::OPENMETRO_URL,
+        lat,
+        long
+    );
     let openmetro_client = reqwest::Client::new();
     let openmetro_response = openmetro_client.get(openmetro_url).send().await?;
 
@@ -30,7 +22,7 @@ async fn get_openmetro_weather(lat: &str, long: &str) -> Result<reqwest::Respons
 }
 
 async fn get_geocoding_result(user_location: &str) -> Result<reqwest::Response, reqwest::Error> {
-    let geocoding_url = format!("https://geocode.maps.co/search?q={}", user_location);
+    let geocoding_url = format!("{}?q={}", urls::GEOCODING_URL, user_location);
     let geocoding_client = reqwest::Client::new();
     let geocoding_response = geocoding_client.get(geocoding_url).send().await?;
 
