@@ -5,13 +5,34 @@ use crate::api::urls;
 use models::{GeocodingJSON, OpenMetroJSON};
 use reqwest;
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::io::{self, Write};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Cache<T> {
-    cahce_type: T,
-    data: HashMap<String, T>,
+    data: HashMap<u64, T>,
+}
+
+impl<T> Cache<T> {
+    fn hash(key: &str) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        key.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn insert(&mut self, key: &str, value: T) -> Option<T> {
+        self.data.insert(Self::hash(key), value)
+    }
+
+    fn remove(&mut self, key: &str) -> Option<T> {
+        self.data.remove(&Self::hash(key))
+    }
+
+    fn get(&self, key: &str) -> Option<&T> {
+        self.data.get(&Self::hash(key))
+    }
 }
 
 async fn get_openmetro_weather(lat: &str, long: &str) -> Result<OpenMetroJSON, reqwest::Error> {
@@ -67,6 +88,10 @@ fn get_user_input() -> String {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut temperature_cache: Cache<f64> = Cache {
+        data: HashMap::new(),
+    };
+
     let user_input = get_user_input();
 
     let geocoding_json = get_geocoding_result(&user_input).await?;
@@ -82,6 +107,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Temperature in {}: {}°C",
         geocoding_result.display_name, openmetro_response.current_weather.temperature
     );
+
+    temperature_cache.insert(
+        &geocoding_result.display_name,
+        openmetro_response.current_weather.temperature,
+    );
+    println!("{:#?}", temperature_cache);
 
     Ok(())
 }
