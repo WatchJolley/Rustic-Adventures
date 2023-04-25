@@ -1,14 +1,20 @@
 mod api;
 mod models;
+
 use crate::api::urls;
 use models::{GeocodingJSON, OpenMetroJSON};
 use reqwest;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::io::{self, Write};
 
-pub const OPEN_METEO_WEATHER_URL: &str = "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current_weather=true&temperature_unit=celsius";
-pub const GEOCODING_URL: &str = "https://geocode.maps.co/search?q={}";
+#[derive(Serialize, Deserialize)]
+struct Cache<T> {
+    cahce_type: T,
+    data: HashMap<String, T>,
+}
 
-async fn get_openmetro_weather(lat: &str, long: &str) -> Result<reqwest::Response, reqwest::Error> {
+async fn get_openmetro_weather(lat: &str, long: &str) -> Result<OpenMetroJSON, reqwest::Error> {
     let openmetro_url = format!(
         "{}?latitude={}&longitude={}&current_weather=true&temperature_unit=celsius",
         urls::OPENMETRO_URL,
@@ -16,15 +22,25 @@ async fn get_openmetro_weather(lat: &str, long: &str) -> Result<reqwest::Respons
         long
     );
     let openmetro_client = reqwest::Client::new();
-    let openmetro_response = openmetro_client.get(openmetro_url).send().await?;
+    let openmetro_response = openmetro_client
+        .get(openmetro_url)
+        .send()
+        .await?
+        .json::<OpenMetroJSON>()
+        .await?;
 
     Ok(openmetro_response)
 }
 
-async fn get_geocoding_result(user_location: &str) -> Result<reqwest::Response, reqwest::Error> {
+async fn get_geocoding_result(user_location: &str) -> Result<Vec<GeocodingJSON>, reqwest::Error> {
     let geocoding_url = format!("{}?q={}", urls::GEOCODING_URL, user_location);
     let geocoding_client = reqwest::Client::new();
-    let geocoding_response = geocoding_client.get(geocoding_url).send().await?;
+    let geocoding_response = geocoding_client
+        .get(geocoding_url)
+        .send()
+        .await?
+        .json::<Vec<GeocodingJSON>>()
+        .await?;
 
     Ok(geocoding_response)
 }
@@ -53,19 +69,15 @@ fn get_user_input() -> String {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user_input = get_user_input();
 
-    let geocoding_json = get_geocoding_result(&user_input)
-        .await?
-        .json::<Vec<GeocodingJSON>>()
-        .await?;
+    let geocoding_json = get_geocoding_result(&user_input).await?;
     let geocoding_result = geocoding_json.first().unwrap_or_else(|| {
         eprintln!("Sorry! That location could not be found.");
         std::process::exit(1);
     });
 
-    let openmetro_response = get_openmetro_weather(&geocoding_result.lat, &geocoding_result.lon)
-        .await?
-        .json::<OpenMetroJSON>()
-        .await?;
+    let openmetro_response =
+        get_openmetro_weather(&geocoding_result.lat, &geocoding_result.lon).await?;
+
     println!(
         "Temperature in {}: {}°C",
         geocoding_result.display_name, openmetro_response.current_weather.temperature
