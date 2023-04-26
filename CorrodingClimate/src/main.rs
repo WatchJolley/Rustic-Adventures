@@ -10,6 +10,11 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::io::{self, Write};
 
+#[derive(Debug)]
+struct Coordinates {
+    long: String,
+    lat: String,
+}
 #[derive(Serialize, Deserialize, Debug)]
 struct Cache<T> {
     data: HashMap<u64, T>,
@@ -88,17 +93,28 @@ fn get_user_input() -> String {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut coordinate_cache: Cache<Coordinates> = Cache {
+        data: HashMap::new(),
+    };
     let mut temperature_cache: Cache<f64> = Cache {
         data: HashMap::new(),
     };
 
-    let user_input = get_user_input();
+    let user_input: String = get_user_input();
 
     let geocoding_json = get_geocoding_result(&user_input).await?;
     let geocoding_result = geocoding_json.first().unwrap_or_else(|| {
         eprintln!("Sorry! That location could not be found.");
         std::process::exit(1);
     });
+
+    let user_coordinates: Coordinates = Coordinates {
+        lat: geocoding_result.lat.clone(),
+        long: geocoding_result.lon.clone(),
+    };
+
+    coordinate_cache.insert(&user_input, user_coordinates);
+    println!("{:#?}", coordinate_cache);
 
     let openmetro_response =
         get_openmetro_weather(&geocoding_result.lat, &geocoding_result.lon).await?;
