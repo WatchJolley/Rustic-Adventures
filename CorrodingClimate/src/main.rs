@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::io::{self, Write};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Coordinates {
     long: String,
     lat: String,
@@ -21,21 +21,27 @@ struct Cache<T> {
 }
 
 impl<T> Cache<T> {
-    fn hash(key: &str) -> u64 {
+    pub fn new() -> Self {
+        Cache {
+            data: HashMap::new(),
+        }
+    }
+
+    pub fn hash(key: &str) -> u64 {
         let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
         hasher.finish()
     }
 
-    fn insert(&mut self, key: &str, value: T) -> Option<T> {
+    pub fn insert(&mut self, key: &str, value: T) -> Option<T> {
         self.data.insert(Self::hash(key), value)
     }
 
-    fn remove(&mut self, key: &str) -> Option<T> {
+    pub fn remove(&mut self, key: &str) -> Option<T> {
         self.data.remove(&Self::hash(key))
     }
 
-    fn get(&self, key: &str) -> Option<&T> {
+    pub fn get(&self, key: &str) -> Option<&T> {
         self.data.get(&Self::hash(key))
     }
 }
@@ -93,12 +99,8 @@ fn get_user_input() -> String {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut coordinate_cache: Cache<Coordinates> = Cache {
-        data: HashMap::new(),
-    };
-    let mut temperature_cache: Cache<f64> = Cache {
-        data: HashMap::new(),
-    };
+    let mut coordinate_cache: Cache<Coordinates> = Cache::new();
+    let mut temperature_cache: Cache<f64> = Cache::new();
 
     let user_input: String = get_user_input();
 
@@ -113,8 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         long: geocoding_result.lon.clone(),
     };
 
-    coordinate_cache.insert(&user_input, user_coordinates);
-    println!("{:#?}", coordinate_cache);
+    coordinate_cache.insert(&user_input.clone(), user_coordinates.clone());
 
     let openmetro_response =
         get_openmetro_weather(&geocoding_result.lat, &geocoding_result.lon).await?;
@@ -125,9 +126,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     temperature_cache.insert(
-        &geocoding_result.display_name,
-        openmetro_response.current_weather.temperature,
+        &geocoding_result.display_name.clone(),
+        openmetro_response.current_weather.temperature.clone(),
     );
+
+    println!("{:#?}", coordinate_cache);
     println!("{:#?}", temperature_cache);
 
     Ok(())
