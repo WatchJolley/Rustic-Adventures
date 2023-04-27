@@ -2,27 +2,34 @@ mod api;
 mod models;
 
 use crate::api::urls;
+use bincode;
 use models::{GeocodingJSON, OpenMetroJSON};
 use reqwest;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::env;
+use std::fs::OpenOptions;
 use std::hash::{Hash, Hasher};
 use std::io::{self, Write};
 
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 struct Coordinates {
     long: String,
     lat: String,
 }
 #[derive(Serialize, Deserialize, Debug)]
-struct Cache<T> {
+struct Cache<T: Serialize> {
+    name: String,
     data: HashMap<u64, T>,
 }
 
-impl<T> Cache<T> {
-    pub fn new() -> Self {
+impl<T: Serialize> Cache<T> {
+    pub fn new(name: &str) -> Self {
+        // TODO: Validate that the name would always be able to be a the name of
+        // a file as it is only used to save the binary cache  as of now.
         Cache {
+            name: name.to_string(),
             data: HashMap::new(),
         }
     }
@@ -43,6 +50,26 @@ impl<T> Cache<T> {
 
     pub fn get(&self, key: &str) -> Option<&T> {
         self.data.get(&Self::hash(key))
+    }
+}
+
+impl<T: Serialize> Drop for Cache<T> {
+    fn drop(&mut self) {
+        let binary_path = env::current_exe().expect("Failed to get current executable path");
+        let mut cache_path = binary_path
+            .parent()
+            .expect("Failed to get parent directory of binary")
+            .join(".cache");
+        std::fs::create_dir_all(&cache_path).expect("Failed to create directory");
+
+        let serialized_data: Vec<u8> =
+            bincode::serialize(&self.data).expect("Failed to serialize data");
+        let filename = format!(".{}.bin", self.name);
+        let file_path = cache_path.join(&filename);
+        if let Ok(mut file) = OpenOptions::new().write(true).create(true).open(&file_path) {
+            file.write_all(&serialized_data)
+                .expect("Failed to write to file");
+        }
     }
 }
 
@@ -99,8 +126,8 @@ fn get_user_input() -> String {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut coordinate_cache: Cache<Coordinates> = Cache::new();
-    let mut temperature_cache: Cache<f64> = Cache::new();
+    let mut coordinate_cache: Cache<Coordinates> = Cache::new("coordinates");
+    let mut temperature_cache: Cache<f64> = Cache::new("temperatures");
 
     let user_input: String = get_user_input();
 
